@@ -51,6 +51,9 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IMessageBus>(sp => sp.GetRequiredService<RabbitMqMessageBus>());
         services.AddHostedService(sp => sp.GetRequiredService<RabbitMqMessageBus>());
 
+        // 测试消费者（开发用，验证消息端到端流转；生产应替换为真正的下游服务）
+        services.AddHostedService<TestConsumerService>();
+
         // Identity
         services.AddSingleton<IJwtTokenService, JwtTokenService>();
         services.AddSingleton<IPasswordHasher, BCryptPasswordHasher>();
