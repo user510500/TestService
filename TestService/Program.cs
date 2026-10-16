@@ -51,10 +51,9 @@ app.UseMiddleware<AuthMiddleware>();
 
 app.MapControllers();
 
-// 开发环境：自动建表 + 注入 admin 账号
-if (app.Environment.IsDevelopment())
-{
-    await DbInitializer.SeedAsync(app.Services);
-}
+// 自动建表 + 注入 admin 账号
+// 用一个开关控制：生产环境用 EF Core Migrations 替代 EnsureCreated 更合适
+// 这里为了方便一站式启动，去掉 IsDevelopment 限制
+await DbInitializer.SeedAsync(app.Services);
 
 app.Run();

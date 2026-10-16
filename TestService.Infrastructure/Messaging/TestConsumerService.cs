@@ -35,11 +35,13 @@ public class TestConsumerService : BackgroundService
             return Task.CompletedTask;
         }
 
-        // 订阅所有 sales.* 事件（Topic 通配符）
+        // 订阅所有 sales.*.* 事件（Topic 通配符）
+        // ⚠️ 注意：# 匹配零或多段，* 匹配正好一段
+        // 我们发布的是 sales.order.created (3段)，所以要用 sales.#
         _messageBus.Subscribe<object>(
             queue: "test-service.audit",
             exchange: "erp.events",
-            routingKey: "sales.*",
+            routingKey: "sales.#",
             handler: (msg, ct) =>
             {
                 _logger.LogInformation("✓ 收到事件: {Payload}", JsonSerializer.Serialize(msg));

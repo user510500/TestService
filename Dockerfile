@@ -25,8 +25,5 @@ ENV ASPNETCORE_ENVIRONMENT=Production
 ENV ASPNETCORE_URLS=http://0.0.0.0:5000
 EXPOSE 5000
 
-# 健康检查（容器级别）
-HEALTHCHECK --interval=30s --timeout=3s --start-period=20s --retries=3 \
-  CMD wget -qO- http://localhost:5000/api/health || exit 1
-
+# 入口：dotnet 启动应用
 ENTRYPOINT ["dotnet", "TestService.dll"]

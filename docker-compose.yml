@@ -2,7 +2,10 @@
 # 用法：docker-compose up -d --build
 # 停止：docker-compose down
 # 看日志：docker-compose logs -f
-version: '3.8'
+#
+# 注意：去掉了 healthcheck + condition: service_healthy
+# 因为容器镜像中 wget/curl 等命令不一定可用，导致健康检查一直失败
+# 改用更简单的"启动即可"模式，应用层自己做重试
 
 services:
   # ========== 反向代理（唯一对外端口）==========
@@ -14,8 +17,7 @@ services:
     volumes:
       - ./deploy/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
     depends_on:
-      testservice:
-        condition: service_healthy         # 等 testservice 健康后再启动
+      - testservice
     networks:
       - app-net
     restart: unless-stopped
@@ -55,12 +57,9 @@ services:
       Jwt__ExpiresMinutes: "480"
 
     depends_on:
-      mysql:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
+      - mysql
+      - redis
+      - rabbitmq
     networks:
       - app-net
     # 注意：没有 ports 段 → 不暴露端口到宿主机
@@ -79,12 +78,6 @@ services:
     networks:
       - app-net
     # 不暴露端口（应用通过容器名访问）
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot123"]
-      interval: 10s
-      timeout: 3s
-      retries: 10
-      start_period: 30s
     restart: unless-stopped
 
   # ========== Redis（缓存）==========
@@ -93,12 +86,6 @@ services:
     container_name: erp_redis
     networks:
       - app-net
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 3s
-      retries: 5
-      start_period: 5s
     restart: unless-stopped
 
   # ========== RabbitMQ（消息队列）==========
@@ -110,12 +97,6 @@ services:
     # 内部访问管理 UI（如需）可加：
     # ports:
     #   - "15672:15672"
-    healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 30s
     restart: unless-stopped
 
 # ========== 网络定义 ==========

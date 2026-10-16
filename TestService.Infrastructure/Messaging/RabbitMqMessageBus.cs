@@ -60,7 +60,8 @@ public class RabbitMqMessageBus : IMessageBus, IHostedService, IDisposable
             var props = channel.CreateBasicProperties();
             props.ContentType = "application/json";
             props.DeliveryMode = 2;
-            channel.BasicPublish(exchange, routingKey, false, props, body);
+            // 改回 mandatory=false 避免正常消息触发 return
+            channel.BasicPublish(exchange, routingKey, mandatory: false, props, body);
             _logger.LogInformation("已发布消息到 {Exchange}/{RoutingKey}", exchange, routingKey);
         }
         catch (Exception ex)
@@ -80,6 +81,8 @@ public class RabbitMqMessageBus : IMessageBus, IHostedService, IDisposable
         var consumer = new EventingBasicConsumer(channel);
         consumer.Received += async (_, ea) =>
         {
+            _logger.LogInformation("[Consumer] Received 事件触发, queue={Queue}, tag={Tag}, bodyLen={Len}",
+                queue, ea.DeliveryTag, ea.Body.Length);
             try
             {
                 var json = Encoding.UTF8.GetString(ea.Body.ToArray());
@@ -89,6 +92,11 @@ public class RabbitMqMessageBus : IMessageBus, IHostedService, IDisposable
                     await handler(msg, CancellationToken.None);
                     channel.BasicAck(ea.DeliveryTag, false);
                 }
+                else
+                {
+                    _logger.LogWarning("[Consumer] Deserialize 后 msg 为 null, json={Json}", json);
+                    channel.BasicAck(ea.DeliveryTag, false);
+                }
             }
             catch (Exception ex)
             {
@@ -96,7 +104,7 @@ public class RabbitMqMessageBus : IMessageBus, IHostedService, IDisposable
                 channel.BasicNack(ea.DeliveryTag, false, requeue: false);
             }
         };
-        channel.BasicConsume(queue, false, consumer);
+        channel.BasicConsume(queue, autoAck: false, consumer);
     }
 
     public Task StartAsync(CancellationToken cancellationToken)
