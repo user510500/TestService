@@ -1,0 +1,128 @@
+# 一键启动整个 ERP 系统
+# 用法：docker-compose up -d --build
+# 停止：docker-compose down
+# 看日志：docker-compose logs -f
+version: '3.8'
+
+services:
+  # ========== 反向代理（唯一对外端口）==========
+  nginx:
+    image: nginx:alpine
+    container_name: erp_nginx
+    ports:
+      - "18080:80"                          # ← 只暴露这一个端口
+    volumes:
+      - ./deploy/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      testservice:
+        condition: service_healthy         # 等 testservice 健康后再启动
+    networks:
+      - app-net
+    restart: unless-stopped
+
+  # ========== 业务服务（不暴露端口）==========
+  testservice:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: erp_testservice
+    environment:
+      # 配置覆盖：appsettings.json 中的所有值都可以用环境变量覆盖
+      # 命名规则：Section__Key → appsettings.json 中的 Section:Key
+
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://0.0.0.0:5000
+
+      # MySQL
+      ConnectionStrings__MySql: "server=mysql;port=3306;database=testservice;user=root;password=root123;CharacterSet=utf8mb4;SslMode=None;AllowPublicKeyRetrieval=true;"
+
+      # Redis
+      Redis__ConnectionString: "redis:6379,password=,abortConnect=false"
+      Redis__Prefix: "TestService:Prod:"
+
+      # RabbitMQ
+      RabbitMQ__HostName: rabbitmq
+      RabbitMQ__Port: "5672"
+      RabbitMQ__UserName: guest
+      RabbitMQ__Password: guest
+      RabbitMQ__VirtualHost: "/"
+      RabbitMQ__EnableConsumer: "true"
+
+      # JWT
+      Jwt__Issuer: "TestService"
+      Jwt__Audience: "TestService.Client"
+      Jwt__Secret: "test-service-production-secret-key-please-change-me-32+chars"
+      Jwt__ExpiresMinutes: "480"
+
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - app-net
+    # 注意：没有 ports 段 → 不暴露端口到宿主机
+    # 外部只能通过 nginx 访问
+    restart: unless-stopped
+
+  # ========== MySQL（数据持久化）==========
+  mysql:
+    image: mysql:8
+    container_name: erp_mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root123
+      MYSQL_DATABASE: testservice
+    volumes:
+      - mysql_data:/var/lib/mysql           # 数据持久化
+    networks:
+      - app-net
+    # 不暴露端口（应用通过容器名访问）
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot123"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+
+  # ========== Redis（缓存）==========
+  redis:
+    image: redis:7
+    container_name: erp_redis
+    networks:
+      - app-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
+
+  # ========== RabbitMQ（消息队列）==========
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: erp_rabbitmq
+    networks:
+      - app-net
+    # 内部访问管理 UI（如需）可加：
+    # ports:
+    #   - "15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+
+# ========== 网络定义 ==========
+networks:
+  app-net:
+    driver: bridge
+
+# ========== 数据卷定义 ==========
+volumes:
+  mysql_data:                                # MySQL 数据持久化到宿主机
