@@ -7,8 +7,7 @@ using TestService.Domain.Entities;
 namespace TestService.Infrastructure.Persistence;
 
 /// <summary>
-/// 数据库初始化器：开发环境自动建表 + 注入默认 admin 账号。
-/// 生产环境建议使用 EF Core Migrations 替代。
+/// 数据库初始化器：应用 EF Core Migrations + 注入默认 admin 账号。
 /// </summary>
 public static class DbInitializer
 {
@@ -22,9 +21,9 @@ public static class DbInitializer
 
         try
         {
-            // 开发环境：确保数据库与表已创建
-            await db.Database.EnsureCreatedAsync(cancellationToken);
-            logger.LogInformation("数据库已就绪");
+            // 应用所有未执行的迁移（幂等，安全）
+            await db.Database.MigrateAsync(cancellationToken);
+            logger.LogInformation("数据库迁移已应用");
 
             // 默认 admin
             if (!await db.Users.AnyAsync(u => u.Username == "admin", cancellationToken))
