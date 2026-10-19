@@ -1,0 +1,57 @@
+# 检查 Docker 是否运行
+docker version
+
+# 确认当前目录
+cd "C:/Users/admin/source/repos/TestService"
+
+# 停掉旧容器 + 删掉数据卷（⚠️ 会清空数据库）
+docker-compose down -v
+
+# 重新构建 + 启动
+docker-compose up -d --build
+
+# 看容器状态
+docker-compose ps
+
+# 看 testservice 日志（重点看迁移是否成功）
+docker-compose logs -f testservice
+
+
+
+
+
+
+
+日常运维指令
+
+更新代码后重新部署（最常用）
+# 只重建 testservice，不动数据库
+docker-compose up -d --build testservice
+
+# 看日志确认
+docker-compose logs --tail=30 testservice
+
+
+
+日常启停
+docker-compose stop          # 停止（保留容器和数据）
+docker-compose start         # 启动
+docker-compose restart       # 重启全部
+docker-compose restart testservice   # 只重启 testservice
+
+
+
+彻底清理（重新开始）
+# 停容器 + 删容器（保留数据卷 → 数据库数据还在）
+docker-compose down
+
+# 停容器 + 删容器 + 删数据卷（⚠️ 数据库清空）
+docker-compose down -v
+
+
+
+看日志
+docker-compose logs -f                    # 所有服务
+docker-compose logs -f testservice        # 只看应用
+docker-compose logs --tail=50 rabbitmq    # 看最后 50 行
+docker-compose logs -f --timestamps       # 带时间戳
